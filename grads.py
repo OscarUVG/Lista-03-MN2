@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.stats
 
 def checkStopCrit(stopCrit, x1, x2, f, df, eps):
     e = 0
