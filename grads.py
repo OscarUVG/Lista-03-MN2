@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import itertools
 
 def checkStopCrit(stopCrit, x1, x2, f, df, eps):
     e = 0
@@ -69,6 +70,7 @@ def descBacktracking(f, df, x0, alpha, maxIter, eps, stopCrit, c, rho):
         j += 1
     return j!=maxIter, seq_x, seq_e
 
+# c=0.8, rho=0.9
 def descNewtonExacto(f, df, ddf, x0, alpha, maxIter, eps, stopCrit, c, rho):
     seq_x = [x0]
     seq_e = [-1]
@@ -136,7 +138,25 @@ def test():
     plt.plot(np.array(seq_x)[:,0], np.array(seq_x)[:,1], c='red')
     plt.show()
 
-test()
-
-        
-        
+def gaussianas(sig=1):
+    seq_mu = np.random.uniform(0,8,(8,2))
+    f = lambda x: np.array([-np.exp(-np.linalg.norm(x-mu)**2/(2*sig)) for mu in seq_mu]).sum()
+    df = lambda x: np.array([np.exp(-np.linalg.norm(x-mu)**2/(2*sig))*(x-mu)/sig for mu in seq_mu]).sum(axis=0)
+    
+    grid = np.linspace(0,8,200)
+    z = [[f([x, y]) for x in grid] for y in grid]
+    plt.contour(grid, grid, z, levels=30)
+    
+    cant_points = 12
+    points = np.random.uniform(0.5,7.5,(cant_points, 2))
+    plt.scatter(points[:,0], points[:,1], c='red')                       
+    for point in points:
+        conv, z, e = descNaiveSteepest(f, df, point, alpha=1e-1, maxIter=10000, eps=1e-10, stopCrit='abs_x')
+        plt.plot(np.array(z)[:,0], np.array(z)[:,1], c='red', linestyle='dashed')
+        plt.scatter(z[-1][0], z[-1][1], c='purple')
+    
+    plt.show()
+    
+    
+#test()
+gaussianas()
