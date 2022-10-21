@@ -69,7 +69,7 @@ def descBacktracking(f, df, x0, alpha, maxIter, eps, stopCrit, c, rho):
         j += 1
     return j!=maxIter, seq_x, seq_e
 
-def descNewtonExacto(f, df, ddf, x0, alpha, maxIter, eps, stopCrit):
+def descNewton(f, df, ddf, x0, alpha, maxIter, eps, stopCrit):
     seq_x = [x0]
     seq_e = [-1]
     stop = False
@@ -89,6 +89,26 @@ def descNewtonExacto(f, df, ddf, x0, alpha, maxIter, eps, stopCrit):
         j += 1
     return j!=maxIter, seq_x, seq_e
 
+def descQuasiNewton(f, df, ddf, x0, alpha, maxIter, eps, stopCrit):
+    seq_x = [x0]
+    seq_e = [-1]
+    stop = False
+    j = 0
+    B = ddf(x0)
+    while(not stop and j < maxIter):
+        if(j>0):
+            y = (df(seq_x[-1]) - df(seq_x[-2])).reshape((len(seq_x[-1]), 1))
+            s = (seq_x[-1] - seq_x[-2]).reshape((len(seq_x[-1]), 1))
+            w = y - B@s
+            B += w@(w.T) / ((w.T)@s)
+        
+        d = -np.linalg.solve(B, df(seq_x[-1]))
+        xNext = seq_x[-1] + alpha * d
+        seq_x.append(xNext)
+        stop, e = checkStopCrit(stopCrit, seq_x[-2], seq_x[-1], f, df, eps)
+        seq_e.append(e)
+        j += 1
+    return j!=maxIter, seq_x, seq_e
 
 def test():
     f = lambda x: 100*(x[1]-x[0]**2)**2 + (1-x[0])**2
@@ -115,23 +135,22 @@ def test():
     h = lambda x: sum([f(x[j:j+2]) for j in range(99)])
     dh = lambda x: np.array([df(x[0:2])[0]]
                             + [df(x[j-1:j+1])[1] + df(x[j:j+2])[0] for j in range(1,99)]
-                            + [df(x[98:100])[1]])  
+                            + [df(x[98:100])[1]])
     def ddh(x):
         Hs = [ddf(x[j:j+2]) for j in range(0,99)]
         mainDiag = [Hs[0][0,0]] + [Hs[j-1][1,1] + Hs[j][0,0] for j in range(1,99)] + [Hs[98][1,1]]
         offDiag = [Hs[j][0,1] for j in range(0,99)]
         H = np.diag(mainDiag) + np.diag(offDiag,-1) + np.diag(offDiag,1)
         return H
-     
     
     # --------------
     x0 = np.ones(100)
     x0[0], x0[-2] = -1.2, -1.2
     alpha = 5e-2
-    maxIter = 1000
+    maxIter = 500
     eps = 1e-6
     
-    conv, seq_x, seq_e  = descNewtonExacto(h, dh, ddh, x0, alpha, maxIter, eps, 'abs_x')
+    conv, seq_x, seq_e  = descQuasiNewton(h, dh, ddh, x0, alpha, maxIter, eps, 'abs_x')
     print(conv, len(seq_x))
     print(seq_x[-1])
     print(h(seq_x[-1]))
