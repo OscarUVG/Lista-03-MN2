@@ -112,22 +112,10 @@ def test():
                                [0, 0, 1080*x[2]**2 - 360*x[3] + 2, -360*x[2]],
                                [0, 0, -360*x[2], 180]])
     
-    #h = lambda x: np.array([100*(x[j+1] - x[j]**2)**2 + (1-x[j])**2 for j in range(99)]).sum()
-    #dhx0 = lambda x: [200*(x[1] - x[0]**2)*(-2*x[0]) - 2*(1-x[0])]
-    #dhx1_x98 = lambda x: [200*(x[j] - x[j-1]**2) + 200*(x[j+1] - x[j]**2)*(-2*x[j]) - 2*(1-x[j])  for j in range(1,99)]
-    #dhx99 = lambda x: [200*(x[99] - x[98]**2)]
-    #dh = lambda x: np.array(dhx0(x) + dhx1_x98(x) + dhx99(x))
-    
     h = lambda x: sum([f(x[j:j+2]) for j in range(99)])
     dh = lambda x: np.array([df(x[0:2])[0]]
                             + [df(x[j-1:j+1])[1] + df(x[j:j+2])[0] for j in range(1,99)]
-                            + [df(x[98:100])[1]])
-    #ddh = lambda x: sum([np.block([
-    #        [np.zeros((j,j)), np.zeros((j,2)), np.zeros((j,98-j))],
-    #        [np.zeros((2,j)), ddf(x[j:j+2]), np.zeros((2,98-j))],
-    #        [np.zeros((98-j,j)), np.zeros((98-j,2)), np.zeros((98-j,98-j))]
-    #    ]) for j in range(99)])
-    
+                            + [df(x[98:100])[1]])  
     def ddh(x):
         Hs = [ddf(x[j:j+2]) for j in range(0,99)]
         mainDiag = [Hs[0][0,0]] + [Hs[j-1][1,1] + Hs[j][0,0] for j in range(1,99)] + [Hs[98][1,1]]
