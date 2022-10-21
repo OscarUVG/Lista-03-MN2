@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import itertools
 
 def checkStopCrit(stopCrit, x1, x2, f, df, eps):
     e = 0
@@ -70,25 +69,19 @@ def descBacktracking(f, df, x0, alpha, maxIter, eps, stopCrit, c, rho):
         j += 1
     return j!=maxIter, seq_x, seq_e
 
-# c=0.8, rho=0.9
-def descNewtonExacto(f, df, ddf, x0, alpha, maxIter, eps, stopCrit, c, rho):
+def descNewtonExacto(f, df, ddf, x0, alpha, maxIter, eps, stopCrit):
     seq_x = [x0]
     seq_e = [-1]
     stop = False
     j = 0
     while(not stop and j < maxIter):
-        L, V = np.linalg.eig(ddf(seq_x[-1]))
-        if(all([l>0 for l in L])):
-            d = -np.linalg.solve(ddf(seq_x[-1]), df(seq_x[-1]))
-        else:
-            newL = np.heaviside(L,0) + 1e-2*np.heaviside(-L,0)
-            d = -np.linalg.solve(V @ np.diag(newL) @ V.T, df(seq_x[-1]))
+        H = ddf(seq_x[-1])
+        L, V = np.linalg.eig(H)
+        if(any([l<=0 for l in L])):
+            newL = L*np.heaviside(L,0.5) + 1*np.heaviside(-L,1)
+            H = V @ np.diag(newL) @ V.T
         
-        alphaFound = False
-        while(not alphaFound):
-            if(f(seq_x[-1] + alpha*d) > f(seq_x[-1]) + c*alpha*(np.dot(df(seq_x[-1]),d))): alpha *= rho
-            else: alphaFound = True
-        
+        d = -np.linalg.solve(H, df(seq_x[-1]))
         xNext = seq_x[-1] + alpha * d
         seq_x.append(xNext)
         stop, e = checkStopCrit(stopCrit, seq_x[-2], seq_x[-1], f, df, eps)
@@ -102,7 +95,7 @@ def test():
     dfx0 = lambda x: 200*(x[1]-x[0]**2)*(-2*x[0]) - 2*(1-x[0])
     dfx1 = lambda x: 200*(x[1]-x[0]**2)
     df = lambda x: np.array([dfx0(x), dfx1(x)])
-    dfx00 = lambda x: 600*x[0]**2 - 400*x[1] + 2
+    dfx00 = lambda x: 1200*x[0]**2 - 400*x[1] + 2
     dfx01 = lambda x: -400*x[0]
     dfx11 = lambda x: 200
     ddf = lambda x: np.matrix([[dfx00(x), dfx01(x)],
@@ -114,29 +107,52 @@ def test():
     dgx2 = lambda x: 2*(x[2]-1) + 180*(x[2]**2-x[3])*(2*x[2])
     dgx3 = lambda x: -180*(x[2]**2-x[3])
     dg = lambda x: np.array([dgx0(x), dgx1(x), dgx2(x), dgx3(x)])
+    ddg = lambda x: np.matrix([[1200*x[0]**2 - 400*x[1] + 2, -400*x[0], 0 , 0],
+                               [-360*x[0], 180, 0, 0],
+                               [0, 0, 1080*x[2]**2 - 360*x[3] + 2, -360*x[2]],
+                               [0, 0, -360*x[2], 180]])
     
-    h = lambda x: np.array([100*(x[j+1] - x[j]**2)**2 + (1-x[j])**2 for j in range(99)]).sum()
-    dhx0 = lambda x: [200*(x[1] - x[0]**2)*(-2*x[0]) - 2*(1-x[0])]
-    dhx1_x98 = lambda x: [200*(x[j] - x[j-1]**2) + 200*(x[j+1] - x[j]**2)*(-2*x[j]) - 2*(1-x[j])  for j in range(1,99)]
-    dhx99 = lambda x: [200*(x[99] - x[98]**2)]
-    dh = lambda x: np.array(dhx0(x) + dhx1_x98(x) + dhx99(x))
+    #h = lambda x: np.array([100*(x[j+1] - x[j]**2)**2 + (1-x[j])**2 for j in range(99)]).sum()
+    #dhx0 = lambda x: [200*(x[1] - x[0]**2)*(-2*x[0]) - 2*(1-x[0])]
+    #dhx1_x98 = lambda x: [200*(x[j] - x[j-1]**2) + 200*(x[j+1] - x[j]**2)*(-2*x[j]) - 2*(1-x[j])  for j in range(1,99)]
+    #dhx99 = lambda x: [200*(x[99] - x[98]**2)]
+    #dh = lambda x: np.array(dhx0(x) + dhx1_x98(x) + dhx99(x))
+    
+    h = lambda x: sum([f(x[j:j+2]) for j in range(99)])
+    dh = lambda x: np.array([df(x[0:2])[0]]
+                            + [df(x[j-1:j+1])[1] + df(x[j:j+2])[0] for j in range(1,99)]
+                            + [df(x[98:100])[1]])
+    #ddh = lambda x: sum([np.block([
+    #        [np.zeros((j,j)), np.zeros((j,2)), np.zeros((j,98-j))],
+    #        [np.zeros((2,j)), ddf(x[j:j+2]), np.zeros((2,98-j))],
+    #        [np.zeros((98-j,j)), np.zeros((98-j,2)), np.zeros((98-j,98-j))]
+    #    ]) for j in range(99)])
+    
+    def ddh(x):
+        Hs = [ddf(x[j:j+2]) for j in range(0,99)]
+        mainDiag = [Hs[0][0,0]] + [Hs[j-1][1,1] + Hs[j][0,0] for j in range(1,99)] + [Hs[98][1,1]]
+        offDiag = [Hs[j][0,1] for j in range(0,99)]
+        H = np.diag(mainDiag) + np.diag(offDiag,-1) + np.diag(offDiag,1)
+        return H
+     
     
     # --------------
-    x0 = [-1.2,1]
-    alpha = 1e-2
-    maxIter = 100000
-    eps = 1e-8
+    x0 = np.ones(100)
+    x0[0], x0[-2] = -1.2, -1.2
+    alpha = 5e-2
+    maxIter = 1000
+    eps = 1e-6
     
-    conv, seq_x, seq_e  = descNewtonExacto(f, df, ddf, x0, alpha, maxIter, eps, 'abs_x', c=0.8, rho=0.9)
+    conv, seq_x, seq_e  = descNewtonExacto(h, dh, ddh, x0, alpha, maxIter, eps, 'abs_x')
     print(conv, len(seq_x))
     print(seq_x[-1])
-    print(f(seq_x[-1]))
+    print(h(seq_x[-1]))
     
-    coords = np.linspace(-2,2,100)
-    grid_x, grid_y = np.meshgrid(coords, coords)
-    plt.contour(grid_x, grid_y, f([grid_x,grid_y]), levels=50)
-    plt.plot(np.array(seq_x)[:,0], np.array(seq_x)[:,1], c='red')
-    plt.show()
+    #coords = np.linspace(-2,2,100)
+    #grid_x, grid_y = np.meshgrid(coords, coords)
+    #plt.contour(grid_x, grid_y, f([grid_x,grid_y]), levels=50)
+    #plt.plot(np.array(seq_x)[:,0], np.array(seq_x)[:,1], c='red')
+    #plt.show()
 
 def gaussianas(sig=1):
     seq_mu = np.random.uniform(0,8,(8,2))
@@ -158,5 +174,8 @@ def gaussianas(sig=1):
     plt.show()
     
     
-#test()
-gaussianas()
+test()
+#gaussianas()
+
+        
+        
